@@ -15,7 +15,8 @@ python server/py/hangman.py
 ````
 source ../.venv/bin/activate # if not already activated
 export PYTHONPATH=$(pwd)
-python benchmark/benchmark_hangman.py python battleship.Battleship # or  hangman.Hangman 
+python benchmark/benchmark_hangman.py python hangman.Hangman  #   hangman.Hangman 
+python benchmark/benchmark_battleship.py python battleship.Battleship #   battleship.Battleship 
 ````
 
 ### Start the Server

@@ -7,15 +7,10 @@ class ActionType(str, Enum):
     SET_SHIP = 'set_ship'
     SHOOT = 'shoot'
 
-class GamePhase(str, Enum):
-    SETUP = 'setup'
-    RUNNING = 'running'
-    FINISHED = 'finished'
-
 class BattleshipAction:
     def __init__(self, action_type: ActionType, ship_name: Optional[str], location: List[str]) -> None:
         self.action_type: ActionType = action_type
-        self.ship_name: Optional[str] = ship_name
+        self.ship_name: Optional[str] = ship_name  # only for set_ship actions
         self.location: List[str] = location
 
 class Ship:
@@ -31,6 +26,11 @@ class PlayerState:
         self.shots: List[str] = shots
         self.successful_shots: List[str] = successful_shots
 
+class GamePhase(str, Enum):
+    SETUP = 'setup'            # before the game has started (including setting ships)
+    RUNNING = 'running'        # while the game is running (shooting)
+    FINISHED = 'finished'      # when the game is finished
+
 class BattleshipGameState:
     def __init__(self, idx_player_active: int, phase: GamePhase, winner: Optional[int], players: List[PlayerState]) -> None:
         self.idx_player_active: int = idx_player_active
@@ -40,6 +40,7 @@ class BattleshipGameState:
 
 class Battleship(Game):
     def __init__(self):
+        """ Game initialization (set_state call not necessary) """
         self.reset()
 
     def reset(self) -> None:
@@ -57,6 +58,7 @@ class Battleship(Game):
         self.state = BattleshipGameState(0, GamePhase.SETUP, None, players)
 
     def print_state(self) -> None:
+        """ Print the current game state """
         print(f"Active player: {self.state.players[self.state.idx_player_active].name}")
         print(f"Phase: {self.state.phase}")
         print(f"Winner: {self.state.winner}")
@@ -67,12 +69,15 @@ class Battleship(Game):
             print(f"  Successful shots: {player.successful_shots}")
 
     def get_state(self) -> BattleshipGameState:
+        """ Get the complete, unmasked game state """
         return self.state
 
     def set_state(self, state: BattleshipGameState) -> None:
+        """ Set the game to a given state """
         self.state = state
 
     def get_list_action(self) -> List[BattleshipAction]:
+        """ Get a list of possible actions for the active player """
         actions = []
         if self.state.phase == GamePhase.SETUP:
             player = self.state.players[self.state.idx_player_active]
@@ -102,14 +107,23 @@ class Battleship(Game):
         return actions
 
     def apply_action(self, action: BattleshipAction) -> None:
+        """ Apply the given action to the game """
+        if self.state.phase == GamePhase.FINISHED:
+            return  # No actions allowed after the game is finished
+
+        if self.state.phase != GamePhase.SETUP and action.action_type == ActionType.SET_SHIP:
+            self.state.phase = GamePhase.SETUP
+
         player = self.state.players[self.state.idx_player_active]
         if action.action_type == ActionType.SET_SHIP:
             for ship in player.ships:
                 if ship.name == action.ship_name and ship.location is None:
                     ship.location = action.location
                     break
-            # Switch to the next player
-            self.state.idx_player_active = 1 - self.state.idx_player_active
+            # Check if the current player has placed all ships
+            if all(ship.location is not None for ship in player.ships):
+                # Switch to the next player
+                self.state.idx_player_active = 1 - self.state.idx_player_active
             # Check if both players have placed all ships
             all_players_ready = all(
                 all(ship.location is not None for ship in p.ships)
@@ -134,6 +148,7 @@ class Battleship(Game):
             self.state.idx_player_active = 1 - self.state.idx_player_active
 
     def get_player_view(self, idx_player: int) -> BattleshipGameState:
+        """ Get the masked state for the active player (e.g. the oppontent's cards are face down)"""
         masked_players = []
         for i, player in enumerate(self.state.players):
             if i == idx_player:
@@ -156,7 +171,12 @@ class Battleship(Game):
 
 class RandomPlayer(Player):
     def select_action(self, state: BattleshipGameState, actions: List[BattleshipAction]) -> Optional[BattleshipAction]:
+        """ Given masked game state and possible actions, select the next action """
         if actions:
+            # Prioritize SET_SHIP actions
+            set_ship_actions = [action for action in actions if action.action_type == ActionType.SET_SHIP]
+            if set_ship_actions:
+                return random.choice(set_ship_actions)
             return random.choice(actions)
         return None
 
