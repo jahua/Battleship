@@ -39,11 +39,11 @@ class BattleshipGameState:
         self.players: List[PlayerState] = players
 
 class Battleship(Game):
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset()
 
     def reset(self) -> None:
-        ships = [
+        ship_templates = [
             Ship("carrier", 5),
             Ship("battleship", 4),
             Ship("cruiser", 3),
@@ -51,8 +51,8 @@ class Battleship(Game):
             Ship("destroyer", 2)
         ]
         players = [
-            PlayerState("Player 1", [Ship(s.name, s.length) for s in ships], [], []),
-            PlayerState("Player 2", [Ship(s.name, s.length) for s in ships], [], [])
+            PlayerState("Player 1", [Ship(ship.name, ship.length) for ship in ship_templates], [], []),
+            PlayerState("Player 2", [Ship(ship.name, ship.length) for ship in ship_templates], [], [])
         ]
         self.state = BattleshipGameState(0, GamePhase.SETUP, None, players)
 
@@ -73,7 +73,7 @@ class Battleship(Game):
         self.state = state
 
     def get_list_action(self) -> List[BattleshipAction]:
-        actions = []
+        actions: List[BattleshipAction] = []
         if self.state.phase == GamePhase.SETUP:
             player = self.state.players[self.state.idx_player_active]
             occupied_cells = set(cell for ship in player.ships if ship.location for cell in ship.location)
@@ -104,18 +104,19 @@ class Battleship(Game):
     def apply_action(self, action: BattleshipAction) -> None:
         player = self.state.players[self.state.idx_player_active]
         if action.action_type == ActionType.SET_SHIP:
+            # Place the ship if it hasn't been placed yet
             for ship in player.ships:
                 if ship.name == action.ship_name and ship.location is None:
                     ship.location = action.location
                     break
             # Switch to the next player
             self.state.idx_player_active = 1 - self.state.idx_player_active
-            # Check if both players have placed all ships
-            all_players_ready = all(
+            # Check if all ships for both players have been placed
+            all_ships_placed = all(
                 all(ship.location is not None for ship in p.ships)
                 for p in self.state.players
             )
-            if all_players_ready:
+            if all_ships_placed:
                 self.state.phase = GamePhase.RUNNING
                 self.state.idx_player_active = 0  # Player 1 starts
         elif action.action_type == ActionType.SHOOT:
@@ -127,11 +128,15 @@ class Battleship(Game):
             player.shots.append(action.location[0])
             if any(action.location[0] in ship.location for ship in opponent.ships if ship.location):
                 player.successful_shots.append(action.location[0])
-                if all(all(loc in player.successful_shots for loc in ship.location) for ship in opponent.ships if ship.location):
+                if all(
+                    all(loc in player.successful_shots for loc in ship.location)
+                    for ship in opponent.ships if ship.location
+                ):
                     self.state.winner = self.state.idx_player_active
                     self.state.phase = GamePhase.FINISHED
-            # Switch to the next player
-            self.state.idx_player_active = 1 - self.state.idx_player_active
+            # Switch to the next player if the game is not finished
+            if self.state.phase != GamePhase.FINISHED:
+                self.state.idx_player_active = 1 - self.state.idx_player_active
 
     def get_player_view(self, idx_player: int) -> BattleshipGameState:
         masked_players = []
